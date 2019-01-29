@@ -1,5 +1,5 @@
 library(rvest)
-# General-purpose data wrangling
+
 # Parsing of HTML/XML files  
 library(rvest)    
 
