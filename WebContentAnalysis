@@ -1,4 +1,7 @@
-library(rvest)
+
+##############################################################
+# Load packages needed for analysis
+##############################################################
 
 # Parsing of HTML/XML files  
 library(rvest)    
@@ -9,14 +12,17 @@ library(stringr)
 # Eases DateTime manipulation
 library(lubridate)
 
-link <- read_html('https://www.smartindustry.com/resource-library/?nav=')
+##############################################################
+# Scrape web content
+##############################################################
 
-title_html <- html_nodes(link,'h2')
-title <- html_text(title_html)
+link <- read_html('https://www.smartindustry.com/resource-library/?nav=') # grab the link
+title_html <- html_nodes(link,'h2') # find out node
+title <- html_text(title_html) # parse it to text
 head(title)
 
 ##############################################################
-# TEXT ANALYSIS
+# Topic Modelling - LDA
 ##############################################################
 
 library(tm)
@@ -27,6 +33,7 @@ library(ggplot2)
 library(ggrepel)
 library(tidytext)
 
+# prepare / build a dtm 
 a <- as.String(title)
 docs <- Corpus(VectorSource(a))
 mystop=c('my','didn','can')
@@ -44,7 +51,9 @@ newdoc = docs[idx,]
 dtm = dtm[idx,]
 newdoc
 
-# find optimal number of topics
+# Build LDA models
+
+## 1) Look for optimal number of topics
 n_topics <- c(2:5) # check x topics
 lda_compare <- n_topics %>%
   map(LDA,x = dtm, control = list(seed = 1109)) # build models with x topics(may take several minutes)
@@ -62,7 +71,7 @@ data_frame(k = n_topics,
 # However, model with 10 topics also have a satisfactory perplexity level.
 # For interpretation, we will use a model with 10 topics.
 
-# build LDA model
+## 2) Build LDA model
 lda.model = LDA(dtm, 2)
 perplexity(lda.model) # perplexity = 152.5049
 myposterior <- posterior(lda.model) # get the posterior of the model
@@ -72,6 +81,7 @@ topics = myposterior$topics # there are 8895 docs, and they contain 10 topics
 # term distribution of each topic, one row per topic, one column per term
 terms = myposterior$terms #189 terms distributed in 10 topics
 
+## 3) Deep-dive analysis on the topics
 # reshape the model into a one-topic-per-term-per-row format. 
 lda_td <- tidy(lda.model)
 head(lda_td,15)
@@ -116,105 +126,6 @@ tid = 10
 myidx <- sample(which(topics[,tid]> max(topics[,tid])*0.8), 10) # get document index of those at 80th percentile of covering a given topic
 newdoc[myidx]$"content"
 
-# For interpretaton purpose, there are 10 identified topics during that hour in 2014.
-# Among the 10 topics, I can identify 3 -- about Malaysian airline, Android games and Luke Hemmings.
-
-
-####--------------------score the sentiment-------------------####
-
-pos = scan('positive-words.txt', what='character',comment.char=';')
-neg = scan('negative-words.txt', what='character',comment.char=';')
-
-score.sentiment = function(sentences, pos.words, neg.words, .progress='none')
-{
-  require(plyr);
-  require(stringr);
-  scores = laply(sentences, function(sentence, pos.words, neg.words) {
-    sentence = gsub('[^A-z ]','', sentence)
-    sentence = tolower(sentence);
-    word.list = str_split(sentence, '\\s+');
-    words = unlist(word.list);
-    pos.matches = match(words, pos.words);
-    neg.matches = match(words, neg.words);
-    pos.matches = !is.na(pos.matches);
-    neg.matches = !is.na(neg.matches);
-    score = sum(pos.matches) - sum(neg.matches);
-    return(score);
-  }, pos.words, neg.words, .progress=.progress );
-  scores.df = data.frame(score=scores, text=sentences,id=temp[,1]);
-  return(scores.df);
-}
-
-score.result=score.sentiment(temp[,2],pos,neg)
-summary(score.result[,1])
-#  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#-6.0000 -1.0000 -1.0000 -0.8761  0.0000  5.0000 
-# Most of tweets are complaints since the 3rd Quarter is 0-- only 1/4 tweets are positive.
-# We identify that -6 to -2 is negative 
-# We identify that -1 to 0  is netural 
-# We identify that beyond 0 is positive 
-
-noncompnrow(score.result[score.result[,1]>0,])
-uncomplaints_tweet<- score.result[score.result[,1]>0,]
-# Among 4583 tweets, there are only 299 tweets are scoring beyond 0 and don't have extrem negative attitude. 
-# However, some of them might be compaints but withoud harsh attitude. 
-# In addition, some of them are quesitons about policy or looking for help
-
-####--------------------- Test the result------------------------#######
-X <- as.matrix(dtm) 
-Y <-as.numeric(!score.result$score<0) 
-# I define that when score <= 0 is negative and when score >0 is positve  
-
-set.seed(1) 
-n=length(Y)
-n1=round(n*0.8)
-n2=n-n1
-train=sample(1:n,n1)
-
-#####------------evaluation-------------------------#####
-Evaluation <- function(pred, true, class)
-{
-  tp <- sum( pred==class & true==class)
-  fp <- sum( pred==class & true!=class)
-  tn <- sum( pred!=class & true!=class)
-  fn <- sum( pred!=class & true==class)
-  precision <- tp/(tp+fp)
-  recall <- tp/(tp+fn)
-  F1 <- 2/(1/precision + 1/recall)
-  result= c(precision,recall,F1)
-  names(result)=c('precision','recall','F1')
-  result
-  
-}
-
-###########################################
-##########   Naive Bayesion   #############
-###########################################
-
-nb.model <- naiveBayes( X[train,], factor( Y[train]) ) # encode the response as a factor variable
-pred.class.NB <- predict( nb.model, X[-train,] )
-table( pred.class.NB, Y[-train] )
-Evaluation( pred.class.NB, Y[-train], 0 ) # precision= 0.877;recall= 0.72???F1=0.79
-Evaluation( pred.class.NB, Y[-train], 1 ) # precision =0.623;recall= 0.82; F1=0.71
-
-pred <- predict( nb.model, X[-train,], type = "raw" )
-nb.roc <- roc( Y[-train], pred[,2] )
-plot.roc( nb.roc )
-auc( Y[-train], pred[,2] ) # The AUC is 0.846
-
-###########################################
-##########   Maximum Entropy   ############
-###########################################
-
-maxent.model <- maxent( X[train,], Y[train] )
-pred.e <- predict( maxent.model, X[-train,] )
-table( pred.e[,1], Y[-train] )
-Evaluation( pred.e[,1], Y[-train], 1 ) #PRECISION= 0.762 RECALL= 0.737;F1=0.749
-Evaluation( pred.e[,1], Y[-train], 0 ) #PRECISION= 0.854 RECALL= 0.870;F1=0.862
-
-maxent.roc <- roc( Y[-train], as.numeric(pred.e[,2]) )
-plot.roc( maxent.roc )
-auc( Y[-train], as.numeric(pred.e[,2])) # AUC =0.879
 
 
 
