@@ -1,0 +1,44 @@
+##Create a Twitter handshake to access data##
+# Before opening R, register at Twitter Developer to get your consumer key info etc.
+
+# Load the required R libraries
+# install packages, if not installed before
+
+library(twitteR)
+
+########################################## Twitter Authorization ###################################################
+
+library(ROAuth)
+
+# Set constant requestURL
+requestURL <- "https://api.twitter.com/oauth/request_token"
+# Set constant accessURL
+accessURL <- "https://api.twitter.com/oauth/access_token"
+# Set constant authURL
+authURL <- "https://api.twitter.com/oauth/authorize"
+
+#Authorization for the Twitter account 
+consumerKey <- "RDuwTV4vgbZ2rKpO94JvwWri5"
+consumerSecret <- "f2pwRBtvUITxHDhUxFZZqqTqM4523kldQQHMLMvQJy0Qq19lbB"
+accessToken <- "3091041154-z7v88M76zAxN4wfX5JUV9cYn0LBnnRU8LfEv0sl"
+accessTokenSecret <- "PuYm5jGkA184ZZjqgPdRK9al2OXBlqupeDgV0k2iafNzJ"
+my_oauth <- OAuthFactory$new(consumerKey=consumerKey, consumerSecret=consumerSecret, 
+                             requestURL=requestURL, accessURL=accessURL, authURL=authURL)
+
+library(curl)
+library(rtweet)
+createTokenNoBrowser<- function(appName, consumerKey, consumerSecret, 
+                                accessToken, accessTokenSecret) {
+  app <- httr::oauth_app(appName, consumerKey, consumerSecret)
+  params <- list(as_header = TRUE)
+  credentials <- list(oauth_token = accessToken, 
+                      oauth_token_secret = accessTokenSecret)
+  token <- httr::Token1.0$new(endpoint = NULL, params = params, 
+                              app = app, credentials = credentials)
+  return(token)
+}
+
+token <- createTokenNoBrowser("AdholicTwtB",consumerKey, consumerSecret,
+                              accessToken, accessTokenSecret)
+
+data <- search_tweets("#lg", n = 10, include_rts = FALSE,token = token)
