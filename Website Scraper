@@ -1,0 +1,20 @@
+# load packages
+
+library(rvest)   # Parsing of HTML/XML files  
+library(stringr)   # String manipulation
+library(lubridate) # Eases DateTime manipulation
+
+
+##############################################################
+# Scrape web content
+##############################################################
+
+link <- read_html('https://www.smartindustry.com/resource-library/?nav=') # grab the link
+title_html <- html_nodes(link,'h2') # find out node
+title <- html_text(title_html) # parse it to text
+head(title)
+
+
+
+
+
