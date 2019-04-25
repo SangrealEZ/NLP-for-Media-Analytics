@@ -18,27 +18,26 @@ accessURL <- "https://api.twitter.com/oauth/access_token"
 authURL <- "https://api.twitter.com/oauth/authorize"
 
 #Authorization for the Twitter account 
-consumerKey <- "RDuwTV4vgbZ2rKpO94JvwWri5"
-consumerSecret <- "f2pwRBtvUITxHDhUxFZZqqTqM4523kldQQHMLMvQJy0Qq19lbB"
-accessToken <- "3091041154-z7v88M76zAxN4wfX5JUV9cYn0LBnnRU8LfEv0sl"
-accessTokenSecret <- "PuYm5jGkA184ZZjqgPdRK9al2OXBlqupeDgV0k2iafNzJ"
+consumerKey <- "aaaaaaaaaa"
+consumerSecret <- "bbbbbbbbbb"
+accessToken <- "cccccccccc"
+accessTokenSecret <- "dddddddddd"
 my_oauth <- OAuthFactory$new(consumerKey=consumerKey, consumerSecret=consumerSecret, 
                              requestURL=requestURL, accessURL=accessURL, authURL=authURL)
 
 library(curl)
 library(rtweet)
-createTokenNoBrowser<- function(appName, consumerKey, consumerSecret, 
-                                accessToken, accessTokenSecret) {
-  app <- httr::oauth_app(appName, consumerKey, consumerSecret)
-  params <- list(as_header = TRUE)
-  credentials <- list(oauth_token = accessToken, 
-                      oauth_token_secret = accessTokenSecret)
-  token <- httr::Token1.0$new(endpoint = NULL, params = params, 
-                              app = app, credentials = credentials)
-  return(token)
-}
+# create an Environment token
+my_token = create_token(app = "eeeeeeeeee",
+                        consumer_key = consumerKey,
+                        consumer_secret = consumerSecret,
+                        access_token = accessToken,
+                        access_secret = accessTokenSecret)
+get_token()
 
-token <- createTokenNoBrowser("AdholicTwtB",consumerKey, consumerSecret,
-                              accessToken, accessTokenSecret)
+# scrape followers
+user_acct = "LGUS"
+scrape_follower = get_followers(user_acct,retryonratelimit = T, verbose = T, token = my_token)
 
+# scrape by hashtag / keywords
 data <- search_tweets("#lg", n = 10, include_rts = FALSE,token = token)
