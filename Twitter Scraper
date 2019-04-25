@@ -3,7 +3,6 @@
 
 # Load the required R libraries
 # install packages, if not installed before
-
 library(twitteR)
 
 ########################################## Twitter Authorization ###################################################
