@@ -1,0 +1,164 @@
+rm(list = ls())
+
+# load raw data
+library(readxl)
+raw <- read_xlsx("raw_data.xlsx",  sheet = 1, col_names = T)
+
+# load packages
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(ggplot2)
+library(ggrepel)
+library(tidytext)
+library("SnowballC")
+library('openNLP')
+library('NLP')
+library('tm')
+library('text2vec')
+library('wordcloud')
+library('stringr')
+library('rebus')
+library('tm')
+library('topicmodels')
+
+# pick out text columns for analysis
+db = raw %>% filter(QC_Country == "US") %>% select(c(1,43)) %>% drop_na() # select certain columns only and drop NAs
+# rename columns - 1st column has to be named "doc_id", 2nd column has to be "text"
+names(db) = c("doc_id", "text") 
+# reshape to tidy text format
+library(tidytext)
+head(db)
+
+# tokenize
+docs <- db %>% unnest_tokens(word, text)
+head(docs)
+
+# remove stop words
+data(stop_words)
+# customize stop words list 
+myStop = tibble(word = c(
+  "miss",
+  "makes",
+  "lot",
+  "NA"
+),
+lexicon = "SMART"
+)
+allStop = bind_rows(myStop, stop_words) # combine default list with custom list
+tidy_docs <- docs %>% anti_join(bind_rows(allStop)) # drop stop_words
+
+# analyze key words by frequency
+tidy_docs %>% count(word, sort = TRUE) # find the most common words across all responses as a whole
+
+# analyze by part-of-speech
+tidy_docs= tidy_docs %>% inner_join(parts_of_speech) # mark part-of-speech
+head(tidy_docs)
+tidy_adj <- tidy_docs %>% filter(pos=='Adjective') %>% drop_na() 
+tidy_noun = tidy_docs %>% filter(pos == "Noun") %>% drop_na() 
+
+# visualization
+library(ggplot2)
+tidy_adj %>%
+  filter(!word %in% c("easy", "home","medical")) %>%
+  count(word, sort = TRUE) %>% 
+  filter(n > 5) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n)) +
+  geom_col() +
+  xlab(NULL) +
+  coord_flip()
+
+tidy_adj %>% 
+  count(word, sort = TRUE) %>% 
+  filter(n > 3) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot +
+  aes(1,1, label = word) +
+  geom_text_repel(segment.size = 0, force = 100)
+
+
+#############   TOPIC MODELING   ############
+docs <- Corpus(DataframeSource(db)) # Build corpus first
+mystop=c( 'http', 'https', '...', '\\||', 'don', 'dont','my','didn','can',"miss","makes","na","NA","Na","lot")
+dtm <- DocumentTermMatrix(docs, control=list(tolower=T, removePunctuation=T, removeNumbers=T, stripWhitespace=T, stopwords=c(mystop,stopwords("english"), stopwords("spanish"))))
+dtm <- removeSparseTerms(dtm,0.996)
+idx <- rowSums(as.matrix(dtm))>0
+newdoc = docs[idx]
+dtm = dtm[idx,]
+newdoc
+
+# find optimal number of topics
+n_topics <- c(5:30) # check 5-30 topics
+lda_compare <- n_topics %>%
+  map(LDA,x = dtm, control = list(seed = 1109)) # build models with 5-30 topics(may take several minutes)
+# plot perplexity
+data_frame(k = n_topics,
+           perplex = map_dbl(lda_compare, perplexity)) %>%
+  ggplot(aes(k, perplex)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Evaluating LDA topic models",
+       subtitle = "Optimal number of topics (smaller is better)",
+       x = "Number of topics",
+       y = "Perplexity")
+# The plot shows that model perplexity keeps decreasing when topic number reaches 20.
+# However, model with 10 topics also have a satisfactory perplexity level.
+# For interpretation, we will use a model with 10 topics.
+
+# build LDA model
+lda.model = LDA(dtm, 8)
+perplexity(lda.model) # perplexity  
+myposterior <- posterior(lda.model) # get the posterior of the model
+
+# topic distribution of each document, one row per document, one column per topic
+topics = myposterior$topics # there are xxx docs, and they contain 10 topics
+# term distribution of each topic, one row per topic, one column per term
+terms = myposterior$terms # xx terms distributed in 10 topics
+
+# reshape the model into a one-topic-per-term-per-row format. 
+lda_td <- tidy(lda.model)
+head(lda_td,15)
+# For each combination the model has β, the probability of that term being generated from that topic.
+
+# find top 20 terms for each topic
+top_terms <- lda_td %>%
+  group_by(topic) %>%
+  top_n(20, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+head(top_terms,25)
+
+# barplotting topic 1-5
+top_terms[1:100,] %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_bar(alpha = 0.8, stat = "identity", show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free", ncol = 2) +
+  coord_flip()
+# barplotting topic 6-10
+top_terms[101:200,] %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_bar(alpha = 0.8, stat = "identity", show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free", ncol = 2) +
+  coord_flip()
+
+# use ggplot to plot topic 1-10 in wordcloud
+top_terms %>% 
+  ggplot +
+  aes(1,1, label = term) +
+  geom_text_repel(segment.size = 0, force = 100) +
+  scale_size(range = c(2, 15), guide = FALSE) +
+  scale_y_discrete()+
+  scale_x_discrete()+
+  labs(x = '', y = '') +
+  facet_wrap(~ topic, scales = "free", ncol = 2) +
+  theme_classic()
+
+# Check sample documents
+tid = 6
+myidx <- sample(which(topics[,tid]> max(topics[,tid])*0.8), 6) # get document index of those at 80th percentile of covering a given topic
+newdoc[myidx]$"content"
+
+
