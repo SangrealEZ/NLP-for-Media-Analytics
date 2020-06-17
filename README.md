@@ -1,6 +1,5 @@
 # Media Analytics
 
-Analyzing the online world
 1. Scraping online content 
   - From single webpage
   - From multiple webpages
