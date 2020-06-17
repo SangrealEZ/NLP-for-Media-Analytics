@@ -16,9 +16,7 @@ title_html <- html_nodes(link,'h2')
 title <- html_text(title_html)
 head(title)
 
-##############################################################
-# TEXT ANALYSIS
-##############################################################
+##### Text Analysis ################################################################
 
 library(tm)
 library(topicmodels)
@@ -121,7 +119,7 @@ newdoc[myidx]$"content"
 # Among the 10 topics, I can identify 3 -- about Malaysian airline, Android games and Luke Hemmings.
 
 
-####--------------------score the sentiment-------------------####
+##### Score the Sentiment ################################################################
 
 pos = scan('positive-words.txt', what='character',comment.char=';')
 neg = scan('negative-words.txt', what='character',comment.char=';')
@@ -161,7 +159,7 @@ uncomplaints_tweet<- score.result[score.result[,1]>0,]
 # However, some of them might be compaints but withoud harsh attitude. 
 # In addition, some of them are quesitons about policy or looking for help
 
-####--------------------- Test the result------------------------#######
+##### Testing Result ################################################################
 X <- as.matrix(dtm) 
 Y <-as.numeric(!score.result$score<0) 
 # I define that when score <= 0 is negative and when score >0 is positve  
@@ -172,7 +170,7 @@ n1=round(n*0.8)
 n2=n-n1
 train=sample(1:n,n1)
 
-#####------------evaluation-------------------------#####
+##### Evaluating ################################################################
 Evaluation <- function(pred, true, class)
 {
   tp <- sum( pred==class & true==class)
